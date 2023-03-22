@@ -525,6 +525,9 @@ wasm_cluster_spawn_exec_env(WASMExecEnv *exec_env)
         goto fail4;
     }
 
+    /* Inherit suspend_flags of parent thread */
+    new_exec_env->suspend_flags.flags = exec_env->suspend_flags.flags;
+
     if (!wasm_cluster_add_exec_env(cluster, new_exec_env))
         goto fail4;
 
@@ -674,6 +677,9 @@ wasm_cluster_create_thread(WASMExecEnv *exec_env,
         new_exec_env->aux_stack_bottom.bottom = UINT32_MAX;
     }
 
+    /* Inherit suspend_flags of parent thread */
+    new_exec_env->suspend_flags.flags = exec_env->suspend_flags.flags;
+
     if (!wasm_cluster_add_exec_env(cluster, new_exec_env))
         goto fail3;
 
@@ -787,18 +793,12 @@ notify_debug_instance_exit(WASMExecEnv *exec_env)
 void
 wasm_cluster_thread_waiting_run(WASMExecEnv *exec_env)
 {
-    os_mutex_lock(&exec_env->wait_lock);
-
-    /* Wake up debugger thread after we get the lock, otherwise we may miss the
-     * signal from debugger thread, see
-     * https://github.com/bytecodealliance/wasm-micro-runtime/issues/1860 */
     exec_env->current_status->running_status = STATUS_STOP;
     notify_debug_instance(exec_env);
 
     while (!wasm_cluster_thread_is_running(exec_env)) {
         os_cond_wait(&exec_env->wait_cond, &exec_env->wait_lock);
     }
-    os_mutex_unlock(&exec_env->wait_lock);
 }
 
 void
